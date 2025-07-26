@@ -1,5 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useReducer } from 'react';
 import { Send, Bot, User } from 'lucide-react';
+
+// State Management - Actions and Reducer
+const chatActions = {
+  ADD_MESSAGE: 'ADD_MESSAGE',
+  SET_LOADING: 'SET_LOADING',
+  CLEAR_MESSAGES: 'CLEAR_MESSAGES',
+  SET_INPUT_VALUE: 'SET_INPUT_VALUE'
+};
+
+const initialChatState = {
+  messages: [
+    {
+      id: 1,
+      text: "Hello! I'm your AI assistant. How can I help you today?",
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ],
+  isLoading: false,
+  inputValue: ''
+};
 
 // Message Component - renders individual messages with styling to differentiate user and AI
 const Message = ({ message, isUser, timestamp }) => {
@@ -53,7 +74,7 @@ const MessageList = ({ messages }) => {
       ) : (
         messages.map((msg, index) => (
           <Message
-            key={index}
+            key={msg.id || index}
             message={msg.text}
             isUser={msg.isUser}
             timestamp={msg.timestamp}
@@ -66,13 +87,11 @@ const MessageList = ({ messages }) => {
 };
 
 // UserInput Component - controlled form with text input and send button
-const UserInput = ({ onSendMessage, disabled }) => {
-  const [inputValue, setInputValue] = useState('');
-
+const UserInput = ({ onSendMessage, disabled, inputValue, onInputChange }) => {
   const handleSubmit = () => {
     if (inputValue.trim() && !disabled) {
       onSendMessage(inputValue.trim());
-      setInputValue('');
+      onInputChange('');
     }
   };
 
@@ -89,7 +108,7 @@ const UserInput = ({ onSendMessage, disabled }) => {
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => onInputChange(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Type your message here..."
           disabled={disabled}
@@ -109,14 +128,8 @@ const UserInput = ({ onSendMessage, disabled }) => {
 
 // ChatWindow Component - primary container orchestrating the entire chat interface
 const ChatWindow = () => {
-  const [messages, setMessages] = useState([
-    {
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      isUser: false,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [chatState, dispatch] = useReducer(chatReducer, initialChatState);
+  const { messages, isLoading, inputValue } = chatState;
 
   const handleSendMessage = (messageText) => {
     const newUserMessage = {
@@ -125,8 +138,8 @@ const ChatWindow = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages(prev => [...prev, newUserMessage]);
-    setIsLoading(true);
+    dispatch({ type: chatActions.ADD_MESSAGE, payload: newUserMessage });
+    dispatch({ type: chatActions.SET_LOADING, payload: true });
 
     // Simulate AI response delay
     setTimeout(() => {
@@ -136,9 +149,17 @@ const ChatWindow = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       
-      setMessages(prev => [...prev, aiResponse]);
-      setIsLoading(false);
+      dispatch({ type: chatActions.ADD_MESSAGE, payload: aiResponse });
+      dispatch({ type: chatActions.SET_LOADING, payload: false });
     }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds
+  };
+
+  const handleInputChange = (value) => {
+    dispatch({ type: chatActions.SET_INPUT_VALUE, payload: value });
+  };
+
+  const handleClearMessages = () => {
+    dispatch({ type: chatActions.CLEAR_MESSAGES });
   };
 
   const generateAIResponse = (userMessage) => {
@@ -160,14 +181,22 @@ const ChatWindow = () => {
     <div className="flex flex-col h-screen max-w-4xl mx-auto bg-white shadow-lg">
       {/* Header */}
       <div className="bg-blue-600 text-white p-4 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <Bot size={24} />
-          <div>
-            <h1 className="text-lg font-semibold">AI Chat Assistant</h1>
-            <p className="text-blue-100 text-sm">
-              {isLoading ? 'AI is typing...' : 'Online'}
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Bot size={24} />
+            <div>
+              <h1 className="text-lg font-semibold">AI Chat Assistant</h1>
+              <p className="text-blue-100 text-sm">
+                {isLoading ? 'AI is typing...' : 'Online'}
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleClearMessages}
+            className="bg-blue-500 hover:bg-blue-400 text-white px-3 py-1 rounded text-sm transition-colors"
+          >
+            Clear Chat
+          </button>
         </div>
       </div>
 
@@ -189,7 +218,12 @@ const ChatWindow = () => {
       )}
 
       {/* User Input */}
-      <UserInput onSendMessage={handleSendMessage} disabled={isLoading} />
+      <UserInput 
+        onSendMessage={handleSendMessage} 
+        disabled={isLoading}
+        inputValue={inputValue}
+        onInputChange={handleInputChange}
+      />
     </div>
   );
 };
